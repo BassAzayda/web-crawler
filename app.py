@@ -653,13 +653,15 @@ async def process_single_url(url, index, total_urls, progress_data, semaphore, w
                 try:
                     html_content, content_type = fetch_with_requests(
                         url, timeout=progress_data.get("timeout", 30))
-                    # Create a basic result without Crawl4AI processing
+                    # Convert HTML to Markdown using Crawl4AI's processor
+                    markdown_content = await process_with_crawl4ai(html_content, url, extraction_config)
+
                     result = {
                         'success': True,
                         'status_code': 200,  # Assume 200 as we don't get the actual status code
                         'url': url,
                         'html': html_content,
-                        'markdown': html_content,  # Just use HTML as markdown for now
+                        'markdown': markdown_content,
                         'error_message': ''
                     }
                 except Exception as e:
