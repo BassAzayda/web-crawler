@@ -18,6 +18,7 @@ import re
 import subprocess
 import tempfile
 from urllib.parse import urlparse
+import logging
 
 # Add Crawl4AI imports
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode, DefaultMarkdownGenerator
@@ -467,6 +468,9 @@ async def process_with_crawl4ai(html_content, url, extraction_config=None):
         cleaned_markdown = re.sub(
             r'\[\]\(#__codelineno-\d+-\d+\)', '', markdown_content)
 
+        # Only remove null bytes which could break file writing
+        cleaned_markdown = cleaned_markdown.replace('\x00', '')
+
         return cleaned_markdown
 
     except Exception as e:
@@ -489,11 +493,13 @@ async def fetch_url(url, timeout=30, use_crawl4ai=True, use_requests=True, extra
 
         # First attempt: Use requests to bypass proxy auth
         if use_requests:
-            result = fetch_with_requests(url, timeout)
-            if result['success']:
-                html_content = result['html']
-                status_code = result['status_code']
-                headers = result.get('headers', {})
+            try:
+                html_content, content_type = fetch_with_requests(url, timeout)
+                status_code = 200  # Assume 200 as we don't get actual status code
+                headers = {'Content-Type': content_type}
+            except Exception as e:
+                logging.warning(f"Requests fetch failed: {str(e)}")
+                html_content = None
 
         # Second attempt: Use aiohttp if requests fails
         if not html_content:
@@ -540,7 +546,7 @@ async def fetch_url(url, timeout=30, use_crawl4ai=True, use_requests=True, extra
 
 
 # NEW FUNCTION: Process a crawl result with both the original and Crawl4AI approaches
-def process_result(result, extraction_config=None):
+def process_result(result, extraction_config=None, crawl_method="unknown"):
     """Process a crawl result and return formatted output for Streamlit."""
     # Set default extraction config if not provided
     if extraction_config is None:
@@ -552,21 +558,29 @@ def process_result(result, extraction_config=None):
         }
 
     output = []
-    # Add URL as comment similar to Google Colab format
-    output.append(f"<!-- URL: {result['url']} -->\n")
+    # Add crawler metadata as comments
+    output.append(f"<!-- URL: {result.get('url', 'unknown')} -->\n")
+    output.append(f"<!-- Crawl Method: {crawl_method} -->\n")
+    output.append(
+        f"<!-- Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} -->\n")
+
+    # Also add metadata as visible text
+    output.append(f"# {result.get('url', 'unknown')}\n")
+    output.append(f"*Crawled using: {crawl_method}*\n")
+    output.append(f"*Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n")
 
     if 'status_code' in result:
-        output.append(f"Status Code: {result['status_code']}\n")
+        output.append(f"Status Code: {result.get('status_code', 'N/A')}\n")
 
-    if not result['success']:
+    if not result.get('success', False):
         display_output = "\n".join(
-            output) + f"\n❌ Error: {result['error_message']}"
+            output) + f"\n❌ Error: {result.get('error_message', 'Unknown error')}"
         file_output = "\n".join(
-            output) + f"\n❌ Error: {result['error_message']}\n\n---\n"
+            output) + f"\n❌ Error: {result.get('error_message', 'Unknown error')}\n\n---\n"
         return display_output, file_output
 
     # Process HTML content
-    soup = BeautifulSoup(result['html'], 'html.parser')
+    soup = BeautifulSoup(result.get('html', ''), 'html.parser')
     metadata = extract_metadata(soup)
 
     # Add metadata to output
@@ -579,6 +593,10 @@ def process_result(result, extraction_config=None):
 
     # Get the markdown content that was already processed by Crawl4AI
     markdown_content = result.get("markdown", "")
+
+    # Only remove null bytes which could break file writing
+    if markdown_content:
+        markdown_content = markdown_content.replace('\x00', '')
 
     # Truncate markdown for display
     display_markdown = markdown_content[:2000] + \
@@ -632,13 +650,24 @@ async def process_single_url(url, index, total_urls, progress_data, semaphore, w
                 )
             elif crawl_method == "requests_only":
                 # Use only requests (no Crawl4AI processing)
-                req_result = fetch_with_requests(
-                    url, timeout=progress_data.get("timeout", 30))
-                if req_result["success"]:
-                    # Process with Crawl4AI using raw HTML
-                    markdown_content = await process_with_crawl4ai(req_result["html"], url, extraction_config)
-                    req_result["markdown"] = markdown_content
-                result = req_result
+                try:
+                    html_content, content_type = fetch_with_requests(
+                        url, timeout=progress_data.get("timeout", 30))
+                    # Create a basic result without Crawl4AI processing
+                    result = {
+                        'success': True,
+                        'status_code': 200,  # Assume 200 as we don't get the actual status code
+                        'url': url,
+                        'html': html_content,
+                        'markdown': html_content,  # Just use HTML as markdown for now
+                        'error_message': ''
+                    }
+                except Exception as e:
+                    result = {
+                        'success': False,
+                        'url': url,
+                        'error_message': str(e)
+                    }
             elif crawl_method == "crawl4ai_http":
                 # Use Crawl4AI's HTTP strategy (similar to requests)
                 http_config = HTTPCrawlerConfig(
@@ -698,22 +727,26 @@ async def process_single_url(url, index, total_urls, progress_data, semaphore, w
                     }
             elif crawl_method == "crawl4ai_raw_html":
                 # Use Crawl4AI's raw HTML processing (fetch with requests, process with Crawl4AI)
-                req_result = fetch_with_requests(
-                    url, timeout=progress_data.get("timeout", 30))
-                if req_result["success"]:
+                try:
+                    html_content, content_type = fetch_with_requests(
+                        url, timeout=progress_data.get("timeout", 30))
                     # Process with the unmodified HTML directly via Crawl4AI
-                    markdown_content = await process_with_crawl4ai(req_result["html"], url, extraction_config)
+                    markdown_content = await process_with_crawl4ai(html_content, url, extraction_config)
 
                     result = {
                         'success': True,
-                        'status_code': req_result["status_code"],
+                        'status_code': 200,  # We don't have the actual status code, so assume 200
                         'url': url,
-                        'html': req_result["html"],
+                        'html': html_content,
                         'markdown': markdown_content,
                         'error_message': ''
                     }
-                else:
-                    result = req_result
+                except Exception as e:
+                    result = {
+                        'success': False,
+                        'url': url,
+                        'error_message': str(e)
+                    }
             else:
                 # Default to hybrid approach
                 result = await fetch_url(
@@ -725,7 +758,7 @@ async def process_single_url(url, index, total_urls, progress_data, semaphore, w
             if result["success"]:
                 progress_data["successful_crawls"] += 1
                 display_output, file_output = process_result(
-                    result, extraction_config)
+                    result, extraction_config, crawl_method)
                 progress_data["results"].append(file_output)
                 progress_data["current_content"] = display_output
                 progress_data["url_statuses"][index] = "success"
@@ -771,6 +804,9 @@ async def crawl_list_of_urls(urls, combined_markdown_output="", write_to_file=Fa
     # Create progress tracking area at top of results
     st.markdown("<h2 class='progress-heading'>Crawling Progress</h2>",
                 unsafe_allow_html=True)
+
+    # Initialize download area at top (will be populated later)
+    download_placeholder = st.empty()
 
     # Create a layout for the progress information
     progress_area = st.container()
@@ -947,6 +983,7 @@ async def crawl_list_of_urls(urls, combined_markdown_output="", write_to_file=Fa
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     metadata = f"""# Web Crawler Results
 Generated on: {timestamp}
+Crawl method: {crawl_method}
 
 Total URLs processed: {total_urls}
 - ✅ Successful: {progress_data["successful_crawls"]}
@@ -957,36 +994,33 @@ Total URLs processed: {total_urls}
 """
     final_content = metadata + combined_content
 
-    st.markdown("---")
-    st.markdown('<h3 style="color: #e0e0e0;">Download Results</h3>',
-                unsafe_allow_html=True)
-    st.write(
-        f'<span style="color: #e0e0e0;">Crawling completed at: {timestamp}</span>', unsafe_allow_html=True)
-    st.write(
-        f'<span style="color: #e0e0e0;">Total URLs: {total_urls}, <span style="color: #8affa2;">Successful: {progress_data["successful_crawls"]}</span>, <span style="color: #ff9090;">Failed: {progress_data["failed_crawls"]}</span></span>', unsafe_allow_html=True)
+    # Add download button at the top via placeholder
+    filename = f"crawl_results_{crawl_method}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
 
-    download_col1, download_col2 = st.columns(2)
-    with download_col1:
-        filename = f"crawl_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+    download_html = f'''
+    <div style="background-color: #1e1e1e; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #4CAF50;">
+        <h3 style="color: #8affa2; margin-top: 0;">📥 Download Results</h3>
+        <p style="color: #e0e0e0; margin-bottom: 10px;">
+            Crawling completed at: {timestamp}<br>
+            Method: {crawl_method}<br>
+            Total URLs: {total_urls}, <span style="color: #8affa2;">Successful: {progress_data["successful_crawls"]}</span>, <span style="color: #ff9090;">Failed: {progress_data["failed_crawls"]}</span>
+        </p>
+    </div>
+    '''
+    download_placeholder.markdown(download_html, unsafe_allow_html=True)
 
-        if write_to_file:
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(final_content)
+    download_placeholder.download_button(
+        label="📥 Download as Markdown",
+        data=final_content,
+        file_name=filename,
+        mime="text/markdown",
+        help="Download the complete crawl results as a Markdown file"
+    )
 
-        download_btn = st.download_button(
-            label="Download as Markdown",
-            data=final_content,
-            file_name=filename,
-            mime="text/markdown"
-        )
-
-    with download_col2:
-        download_btn_html = st.download_button(
-            label="Download as HTML",
-            data=markdown_to_html(final_content),
-            file_name=f"crawl_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
-            mime="text/html"
-        )
+    # Optionally write to a local file if requested
+    if write_to_file:
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(final_content)
 
     return final_content
 
@@ -1073,36 +1107,35 @@ def markdown_to_html(markdown_content):
 
 
 def fetch_with_requests(url, timeout=30):
-    """
-    Fetch URL content using the requests library, bypassing proxy authentication.
-    Returns a dictionary with success status, HTML content, status code, and headers.
-    """
+    """Fetch URL using the requests library."""
     try:
         headers = {
-            'User-Agent': random.choice(USER_AGENTS),
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'max-age=0'
         }
-
         response = requests.get(url, headers=headers, timeout=timeout)
-        response.raise_for_status()  # Raise an exception for 4XX/5XX responses
+        response.raise_for_status()
 
-        return {
-            'success': True,
-            'status_code': response.status_code,
-            'html': response.text,
-            'headers': dict(response.headers),
-            'url': url
-        }
-    except requests.exceptions.RequestException as e:
-        return {
-            'success': False,
-            'url': url,
-            'error_message': str(e)
-        }
+        # Handle encoding issues
+        if response.encoding is None or response.encoding == 'ISO-8859-1':
+            # If encoding is not detected or set to ISO-8859-1 (requests' default fallback),
+            # use apparent_encoding which is more reliable
+            response.encoding = response.apparent_encoding
+
+        # Clean HTML content before returning
+        html_content = response.text
+
+        # Remove null bytes and other problematic characters
+        html_content = html_content.replace('\x00', '')
+
+        # Return cleaned HTML
+        return html_content, response.headers.get('Content-Type', '')
+    except requests.RequestException as e:
+        logging.error(f"Error fetching {url}: {e}")
+        raise
 
 
 def main():
