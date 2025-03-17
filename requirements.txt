@@ -1,5 +1,7 @@
+requests
+markdownify
+beautifulsoup4
 streamlit
-nest-asyncio
-aiohttp
 googlesearch-python
-crawl4ai
+aiohttp
+nest_asyncio

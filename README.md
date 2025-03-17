@@ -1,59 +1,51 @@
 # Web Crawler App
 
-A Streamlit-based web crawler application that can:
-- Crawl websites from a sitemap URL
+A simple web crawler application built with Streamlit that allows you to:
 - Crawl individual web pages
+- Process entire sitemaps
 - Search Google and crawl the results
 
 ## Features
 
-- Support for sitemap.xml parsing
+- Backend-only solution using requests (no browser required)
+- Converts HTML to clean Markdown
+- Supports basic authentication and custom headers
+- Handles sitemaps
 - Google search integration
-- Markdown content generation
-- Progress tracking
-- User-friendly interface
-- Rotating user agents for better crawling
+- Downloadable results
 
-## Installation
+## Setup
 
-1. Clone this repository:
-```bash
-git clone <your-repository-url>
-cd web-crawler
-```
+1. Clone this repository
+2. Run the setup script:
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+   
+   Or manually set up:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
 
-2. Install the required dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. Install Chrome/Chromium (required for crawl4ai):
-```bash
-crawl4ai-setup
-```
+3. Run the app:
+   ```bash
+   streamlit run app.py
+   ```
 
 ## Usage
 
-1. Run the Streamlit app:
-```bash
-streamlit run app.py
-```
+1. Enter a URL, sitemap URL, or search query in the input field
+2. Configure authentication if needed in the sidebar
+3. Adjust crawler settings as needed
+4. Click "Start Crawling"
+5. View and download the results
 
-2. Open your web browser and navigate to the URL shown in the terminal (usually http://localhost:8501)
+## Requirements
 
-3. Enter one of the following in the input field:
-   - A sitemap URL (ending in .xml)
-   - A webpage URL
-   - A search query
-
-4. Click "Start Crawling" and watch the results appear!
-
-## Notes
-
-- The app uses async operations for efficient crawling
-- Progress is shown in real-time
-- Results can be saved to a markdown file
-- Respects robots.txt and implements polite crawling
+See `requirements.txt` for the full list of dependencies.
 
 ## License
 
