@@ -1,91 +1,64 @@
-# Web Crawler Streamlit App
+# Web Crawler App
 
-A web crawling application built with Streamlit that allows you to extract content from websites in markdown format. This app supports crawling individual URLs, sitemaps, and search engine results.
+A Streamlit-based web crawler application that can:
+- Crawl websites from a sitemap URL
+- Crawl individual web pages
+- Search Google and crawl the results
 
 ## Features
 
-- **Multiple Input Options**:
-  - Crawl a single webpage URL
-  - Process an entire sitemap
-  - Perform a Google search and crawl the results
-
-- **Content Extraction**:
-  - Extracts LLM-friendly markdown when available
-  - Falls back to regular markdown or HTML content
-  - Preserves metadata like titles and descriptions
-
-- **User Interface**:
-  - Interactive Streamlit dashboard
-  - Progress tracking for crawl operations
-  - Expandable result previews
-  - Export functionality to save results
+- Support for sitemap.xml parsing
+- Google search integration
+- Markdown content generation
+- Progress tracking
+- User-friendly interface
+- Rotating user agents for better crawling
 
 ## Installation
 
-### Prerequisites
-
-- Python 3.8 or higher
-- pip package manager
-
-### Setup
-
 1. Clone this repository:
-   ```bash
-   git clone https://github.com/yourusername/web-crawler-app.git
-   cd web-crawler-app
-   ```
+```bash
+git clone <your-repository-url>
+cd web-crawler
+```
 
-2. Create a virtual environment (recommended):
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+2. Install the required dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Set up crawl4ai resources:
-   ```bash
-   crawl4ai-setup
-   ```
+3. Install Chrome/Chromium (required for crawl4ai):
+```bash
+crawl4ai-setup
+```
 
 ## Usage
 
-1. Start the Streamlit app:
-   ```bash
-   streamlit run app.py
-   ```
+1. Run the Streamlit app:
+```bash
+streamlit run app.py
+```
 
-2. Open your browser and navigate to the URL shown in the terminal (typically http://localhost:8501)
+2. Open your web browser and navigate to the URL shown in the terminal (usually http://localhost:8501)
 
-3. Use the sidebar to configure your crawl:
-   - Select input type (Single URL, Sitemap URL, or Google Search Query)
-   - Enter the URL or query
-   - Adjust the number of results to crawl
-   - Click "Start Crawling"
+3. Enter one of the following in the input field:
+   - A sitemap URL (ending in .xml)
+   - A webpage URL
+   - A search query
 
-4. View and export results:
-   - Browse through the crawled content in the expandable sections
-   - Export results to a markdown file using the export button
+4. Click "Start Crawling" and watch the results appear!
 
-## Deployment
+## Notes
 
-You can deploy this app to Streamlit Sharing for free by following these steps:
-
-1. Push your code to GitHub
-2. Visit [Streamlit Sharing](https://share.streamlit.io/) and sign in
-3. Create a new app and connect it to your GitHub repository
-4. Configure deployment settings and deploy
-
-## Acknowledgments
-
-This application uses the following libraries:
-- Streamlit for the web interface
-- crawl4ai for web crawling functionality
-- googlesearch-python for search capabilities
+- The app uses async operations for efficient crawling
+- Progress is shown in real-time
+- Results can be saved to a markdown file
+- Respects robots.txt and implements polite crawling
 
 ## License
 
-MIT
+MIT License
+
+## Contributing
+
+Feel free to open issues or submit pull requests!
