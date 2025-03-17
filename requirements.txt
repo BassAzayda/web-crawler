@@ -1,0 +1,5 @@
+streamlit==1.31.0
+nest-asyncio==1.5.8
+aiohttp==3.9.1
+googlesearch-python==1.2.3
+crawl4ai==0.3.11
