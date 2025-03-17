@@ -789,7 +789,7 @@ async def process_single_url(url, index, total_urls, progress_data, semaphore, w
         progress_data["progress"] = progress_data["processed_count"] / total_urls
 
 
-async def crawl_list_of_urls(urls, combined_markdown_output="", write_to_file=False, wait_time=3, extraction_config=None, concurrency_limit=5, crawl_method="hybrid"):
+async def crawl_list_of_urls(urls, combined_markdown_output="", wait_time=3, extraction_config=None, concurrency_limit=5, crawl_method="hybrid"):
     """Crawl a list of URLs concurrently using asyncio and semaphores."""
     # Set default extraction config if not provided
     if extraction_config is None:
@@ -1018,11 +1018,6 @@ Total URLs processed: {total_urls}
         mime="text/markdown",
         help="Download the complete crawl results as a Markdown file"
     )
-
-    # Optionally write to a local file if requested
-    if write_to_file:
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(final_content)
 
     return final_content
 
